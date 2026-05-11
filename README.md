@@ -1,73 +1,118 @@
 # Email Signature Generator
 
-Automated tool that generates personalised HTML email signatures for staff from a CSV file and an HTML template.
+Automated tool that reads staff data from a CSV file, applies it to an HTML email signature template, and generates one personalised signature file per user.
 
-## How It Works
-
-1. Reads staff data from a CSV file
-2. Loads a reusable HTML template containing `{{Placeholder}}` tokens
-3. Replaces each placeholder with the corresponding CSV column value
-4. Outputs one HTML signature file per staff member
-
-## Folder Structure
+## Project Structure
 
 ```
-assets/
-├── Active_AD_Staff_List - Copy.csv   # Staff data (editable in Excel)
-├── template.html                     # HTML signature template with placeholders
-├── generate_signatures.py            # The generator script
-├── output/                           # Generated signatures (git-ignored)
-│   ├── akash_gangoo.html
-│   └── ...
-└── index 6 1.html                    # Original reference signature
+email-signature-generator/
+├── input/
+│   └── users.csv                      # Staff data (editable in Excel)
+├── templates/
+│   └── signature_template.html        # HTML template with {{Placeholder}} tokens
+├── output/
+│   └── generated_signatures/          # Generated HTML files (git-ignored)
+├── src/
+│   ├── __init__.py
+│   ├── main.py                        # Entry point
+│   ├── csv_reader.py                  # Reads and validates the CSV
+│   ├── template_renderer.py           # Replaces placeholders with user data
+│   ├── file_writer.py                 # Writes rendered HTML to disk
+│   └── utils.py                       # Shared helpers (filename sanitisation, etc.)
+├── config/
+│   └── placeholder_mapping.json       # Column ↔ placeholder mapping & validation rules
+├── .gitignore
+├── README.md
+└── requirements.txt
 ```
 
 ## Prerequisites
 
-- **Python 3.6+** (no external packages required)
+- **Python 3.6+** — no external packages required (standard library only)
 
-## Usage
+## Quick Start
 
 ```bash
-python generate_signatures.py
+# 1. Navigate to the project root
+cd email-signature-generator
+
+# 2. Run the generator
+python -m src.main
 ```
 
-Generated signatures will appear in the `output/` folder.
+Generated signatures appear in `output/generated_signatures/`.
 
-## CSV Format
+## Input: CSV File
 
-The CSV must have a header row. Column names map directly to template placeholders.
+Place your staff data in `input/users.csv`. The file must have a header row whose column names match the placeholders in the template.
 
-| Column | Example | Template Placeholder |
+| FirstName | LastName | Mail | Title | MobilePhone |
+|-----------|----------|------|-------|-------------|
+| Akash | Gangoo | akash.gangoo@mns.mu | Systems Administrator | +230 57871996 |
+| Olivier | Jacob | olivier.jacob@mns.mu | UX Lead | |
+
+> **Tip:** Edit in Excel and save as CSV (UTF-8).
+
+## Template: HTML Signature
+
+Edit `templates/signature_template.html` to change the signature design. Use `{{ColumnName}}` placeholders anywhere in the HTML — they must match the CSV column headers exactly.
+
+Current placeholders:
+
+| Placeholder | Source Column | Example Value |
 |---|---|---|
-| FirstName | Akash | `{{FirstName}}` |
-| LastName | Gangoo | `{{LastName}}` |
-| Mail | akash.gangoo@mns.mu | `{{Mail}}` |
-| Title | Systems Administrator | `{{Title}}` |
-| MobilePhone | +230 57871996 | `{{MobilePhone}}` |
+| `{{FirstName}}` | FirstName | Akash |
+| `{{LastName}}` | LastName | Gangoo |
+| `{{Mail}}` | Mail | akash.gangoo@mns.mu |
+| `{{Title}}` | Title | Systems Administrator |
+| `{{MobilePhone}}` | MobilePhone | +230 57871996 |
 
-### Adding New Fields
+## Configuration
 
-1. Add a new column to the CSV (e.g. `Department`)
-2. Add the matching placeholder in `template.html` (e.g. `{{Department}}`)
-3. Re-run the script — no code changes needed
+`config/placeholder_mapping.json` controls:
 
-## Template
+| Key | Purpose |
+|---|---|
+| `filename_fields` | Which columns to use for the output filename (default: `["FirstName", "LastName"]`) |
+| `required_fields` | Columns that must be non-empty — rows missing these are skipped |
+| `columns` | Documents the semantic meaning of each CSV column |
+| `placeholders` | Documents the mapping from column → template token |
 
-Edit `template.html` to change the signature design. Use `{{ColumnName}}` placeholders anywhere in the HTML. They will be replaced with the corresponding value from each CSV row.
+## Adding a New Field
 
-- Missing or empty values are replaced with an empty string
-- Any unreplaced placeholders are automatically removed
+1. Add a column to the CSV (e.g. `Department`)
+2. Add the placeholder `{{Department}}` in the HTML template
+3. Optionally update `placeholder_mapping.json`
+4. Re-run — **no code changes needed**
+
+## Missing Values
+
+- Empty CSV cells are replaced with an empty string
+- Any `{{Placeholder}}` with no matching CSV column is silently removed
+- Rows missing **required fields** (defined in config) are skipped with a warning
 
 ## Output
 
-- Files are saved to the `output/` folder
-- Filenames are generated from `FirstName_LastName` in lowercase (e.g. `akash_gangoo.html`)
-- Special characters in names are replaced with underscores
+- Files are written to `output/generated_signatures/`
+- Filenames are auto-generated from `FirstName_LastName` in lowercase
+- Special characters are replaced with underscores
+- The output folder is git-ignored (files are reproducible)
+
+## Logging
+
+The script logs to the console with timestamps:
+
+```
+09:15:32  INFO      Email Signature Generator
+09:15:32  INFO      Loaded 5 user(s) from users.csv
+09:15:32  INFO      Written: akash_gangoo.html
+09:15:32  INFO      Written: allan_woo.html
+09:15:32  INFO      Done — 5 signature(s) generated, 0 skipped.
+```
 
 ## Notes
 
-- Save the CSV as **UTF-8** if staff names contain accented characters
-- Web fonts (e.g. Montserrat) will not render in most email clients — they fall back to the system sans-serif font
-- The `output/` folder is git-ignored since files are reproducible by running the script
-
+- **Email client fonts:** Web fonts (Montserrat) won't render in most email clients — they fall back to the system sans-serif font
+- **Outlook gradients:** CSS `linear-gradient` doesn't work in Outlook — the template already uses images as a workaround
+- **Encoding:** Save the CSV as UTF-8 if staff names contain accented characters
+- **Deployment:** This generates the HTML files. Deploying them to Outlook requires a separate step (GPO, registry, or manual copy to `%appdata%\Microsoft\Signatures\`)

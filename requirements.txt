@@ -1,0 +1,8 @@
+# No external dependencies required.
+# Python 3.6+ standard library only (csv, json, re, pathlib, logging).
+#
+# If you later switch to .xlsx Excel files, uncomment the line below
+# and run: pip install -r requirements.txt
+#
+# openpyxl>=3.1.0
+
