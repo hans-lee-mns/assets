@@ -1,0 +1,15 @@
+# JetBrains IDE
+.idea/
+
+# Generated signatures (reproducible via generate_signatures.py)
+output/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
