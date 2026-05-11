@@ -1,0 +1,8 @@
+[build]
+  base = "email-signature-generator-ui"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+

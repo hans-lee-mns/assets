@@ -96,3 +96,13 @@ Use `{{ColumnName}}` anywhere in the HTML template:
 
 Works in all modern browsers (Chrome, Firefox, Safari, Edge).
 
+## Deploy to Netlify
+
+This app is deployed as a static Astro site.
+
+- `Base directory`: `email-signature-generator-ui`
+- `Build command`: `npm run build`
+- `Publish directory`: `dist`
+- `Functions directory`: leave empty/default
+
+A root-level `netlify.toml` is included at `../netlify.toml` (workspace path: `D:\Projects\assets\netlify.toml`) so Netlify can pick these settings automatically.
