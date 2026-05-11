@@ -1,12 +1,11 @@
 """
 Email Signature Generator — Main Entry Point
 =============================================
-Reads users from a CSV file, renders personalised HTML signatures
-from a template, and writes one file per user.
+Scans the input/ folder for CSV files, renders personalised HTML signatures
+from a template, and writes one file per user into a subfolder per CSV.
 
 Usage:
     python -m src.main
-    python src/main.py
 """
 
 import json
@@ -21,9 +20,9 @@ from .utils import safe_filename
 
 # ── Paths (relative to project root) ──────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INPUT_FILE = PROJECT_ROOT / "input" / "users.csv"
+INPUT_DIR = PROJECT_ROOT / "input"
 TEMPLATE_FILE = PROJECT_ROOT / "templates" / "signature_template.html"
-OUTPUT_DIR = PROJECT_ROOT / "output" / "generated_signatures"
+OUTPUT_DIR = PROJECT_ROOT / "output"
 CONFIG_FILE = PROJECT_ROOT / "config" / "placeholder_mapping.json"
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -45,28 +44,30 @@ def load_config() -> dict:
     return {}
 
 
-def main() -> None:
-    setup_logging()
-    logger = logging.getLogger(__name__)
+def process_csv(csv_path: Path, template: str, config: dict, logger: logging.Logger) -> tuple:
+    """
+    Process a single CSV file: read users, render signatures, write output.
 
-    logger.info("=" * 50)
-    logger.info("Email Signature Generator")
-    logger.info("=" * 50)
+    Output subfolder is named after the CSV file (without extension).
+    e.g. input/users.csv -> output/users/
+         input/Active_AD_Staff_List - Copy.csv -> output/Active_AD_Staff_List - Copy/
 
-    # ── Load config ───────────────────────────────────────────────────────
-    config = load_config()
+    Returns:
+        (success_count, skipped_count)
+    """
     filename_fields = config.get("filename_fields", ["FirstName", "LastName"])
     required_fields = config.get("required_fields", [])
 
-    # ── Read inputs ───────────────────────────────────────────────────────
+    # Output subfolder matches the CSV filename (without extension)
+    subfolder_name = csv_path.stem
+    output_subfolder = OUTPUT_DIR / subfolder_name
+
     try:
-        users = read_users(INPUT_FILE)
-        template = load_template(TEMPLATE_FILE)
+        users = read_users(csv_path)
     except (FileNotFoundError, ValueError) as e:
         logger.error(str(e))
-        sys.exit(1)
+        return 0, 0
 
-    # ── Generate signatures ───────────────────────────────────────────────
     success = 0
     skipped = 0
 
@@ -75,7 +76,7 @@ def main() -> None:
         missing = [f for f in required_fields if not user.get(f)]
         if missing:
             logger.warning(
-                "Row %d: skipping — missing required field(s): %s",
+                "  Row %d: skipping — missing required field(s): %s",
                 i, ", ".join(missing),
             )
             skipped += 1
@@ -89,15 +90,64 @@ def main() -> None:
         filename = safe_filename(*name_parts)
 
         # Write
-        write_signature(OUTPUT_DIR, filename, html)
+        write_signature(output_subfolder, filename, html)
         success += 1
 
+    return success, skipped
+
+
+def main() -> None:
+    setup_logging()
+    logger = logging.getLogger(__name__)
+
+    logger.info("=" * 50)
+    logger.info("Email Signature Generator")
+    logger.info("=" * 50)
+
+    # ── Load config ───────────────────────────────────────────────────────
+    config = load_config()
+
+    # ── Load template ─────────────────────────────────────────────────────
+    try:
+        template = load_template(TEMPLATE_FILE)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        sys.exit(1)
+
+    # ── Discover CSV files in input/ ──────────────────────────────────────
+    if not INPUT_DIR.exists():
+        logger.error("Input directory not found: %s", INPUT_DIR)
+        sys.exit(1)
+
+    csv_files = sorted(INPUT_DIR.glob("*.csv"))
+    if not csv_files:
+        logger.error("No CSV files found in: %s", INPUT_DIR)
+        sys.exit(1)
+
+    logger.info("Found %d CSV file(s) in input/", len(csv_files))
+
+    # ── Process each CSV ──────────────────────────────────────────────────
+    total_success = 0
+    total_skipped = 0
+
+    for csv_path in csv_files:
+        logger.info("-" * 50)
+        logger.info("Processing: %s", csv_path.name)
+        logger.info("  Output → output/%s/", csv_path.stem)
+
+        success, skipped = process_csv(csv_path, template, config, logger)
+        total_success += success
+        total_skipped += skipped
+
+        logger.info("  %d generated, %d skipped", success, skipped)
+
     # ── Summary ───────────────────────────────────────────────────────────
-    logger.info("-" * 50)
+    logger.info("=" * 50)
     logger.info(
-        "Done — %d signature(s) generated, %d skipped.", success, skipped
+        "Total: %d signature(s) generated, %d skipped across %d file(s).",
+        total_success, total_skipped, len(csv_files),
     )
-    logger.info("Output folder: %s", OUTPUT_DIR)
+    logger.info("Output root: %s", OUTPUT_DIR)
 
 
 if __name__ == "__main__":

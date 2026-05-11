@@ -6,12 +6,14 @@ Automated tool that reads staff data from a CSV file, applies it to an HTML emai
 
 ```
 email-signature-generator/
-├── input/
-│   └── users.csv                      # Staff data (editable in Excel)
+├── input/                             # Drop one or more CSV files here
+│   ├── users.csv
+│   └── Active_AD_Staff_List.csv
 ├── templates/
 │   └── signature_template.html        # HTML template with {{Placeholder}} tokens
-├── output/
-│   └── generated_signatures/          # Generated HTML files (git-ignored)
+├── output/                            # Auto-created subfolders per CSV (git-ignored)
+│   ├── users/
+│   └── Active_AD_Staff_List/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                        # Entry point
@@ -40,18 +42,28 @@ cd email-signature-generator
 python -m src.main
 ```
 
-Generated signatures appear in `output/generated_signatures/`.
+The script scans `input/` for **all CSV files** and generates a matching output subfolder per file:
 
-## Input: CSV File
+```
+input/                                    output/
+├── users.csv                  →          ├── users/
+│                                         │   ├── akash_gangoo.html
+│                                         │   └── ...
+├── Active_AD_Staff_List - Copy.csv  →    ├── Active_AD_Staff_List - Copy/
+│                                         │   ├── akash_gangoo.html
+│                                         │   └── ...
+```
 
-Place your staff data in `input/users.csv`. The file must have a header row whose column names match the placeholders in the template.
+## Input: CSV Files
+
+Drop one or more CSV files into `input/`. Each file must have a header row whose column names match the placeholders in the template.
 
 | FirstName | LastName | Mail | Title | MobilePhone |
 |-----------|----------|------|-------|-------------|
 | Akash | Gangoo | akash.gangoo@mns.mu | Systems Administrator | +230 57871996 |
 | Olivier | Jacob | olivier.jacob@mns.mu | UX Lead | |
 
-> **Tip:** Edit in Excel and save as CSV (UTF-8).
+> **Tip:** Edit in Excel and save as CSV (UTF-8). You can have multiple CSV files — each gets its own output folder.
 
 ## Template: HTML Signature
 
@@ -93,7 +105,7 @@ Current placeholders:
 
 ## Output
 
-- Files are written to `output/generated_signatures/`
+- Each CSV in `input/` gets its own subfolder in `output/` (named after the CSV file)
 - Filenames are auto-generated from `FirstName_LastName` in lowercase
 - Special characters are replaced with underscores
 - The output folder is git-ignored (files are reproducible)
