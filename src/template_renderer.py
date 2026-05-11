@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from typing import Dict
 
+import re
+
 from .utils import strip_unreplaced_placeholders
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,9 @@ def render(template: str, user: Dict[str, str]) -> str:
     for key, value in user.items():
         placeholder = "{{" + key + "}}"
         result = result.replace(placeholder, value)
+
+    # Remove "m. " prefix if mobile phone is empty
+    result = re.sub(r"\s*m\.\s*(?=<br>|<br/>|<br />)", "", result)
 
     # Clean up any placeholders that had no matching column
     before = result
