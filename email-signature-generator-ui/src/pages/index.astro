@@ -1,0 +1,89 @@
+---
+import '../styles/global.css';
+---
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Signature Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" is:inline></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📧 Email Signature Generator</h1>
+      <p>Upload a CSV, generate personalised signatures, download as ZIP.</p>
+    </header>
+
+    <!-- Steps indicator -->
+    <div class="steps">
+      <div class="step active" id="step-1"></div>
+      <div class="step" id="step-2"></div>
+      <div class="step" id="step-3"></div>
+    </div>
+
+    <!-- Step 1: Upload CSV -->
+    <div class="card" id="card-upload">
+      <h2>1. Upload Staff CSV</h2>
+      <div class="upload-area" id="drop-zone">
+        <div class="icon">📄</div>
+        <strong>Drop your CSV file here</strong>
+        <p>or click to browse — must include a header row</p>
+        <input type="file" id="csv-input" accept=".csv" hidden>
+      </div>
+      <div id="file-info" class="file-info" style="display:none;">
+        <span class="name" id="file-name"></span>
+        <span class="remove" id="file-remove">✕ Remove</span>
+      </div>
+      <div class="messages" id="csv-messages"></div>
+    </div>
+
+    <!-- Step 2: Select Template -->
+    <div class="card" id="card-template">
+      <h2>2. Signature Template</h2>
+      <select id="template-select">
+        <option value="/templates/signature-template.html">MNS Default Template</option>
+      </select>
+      <div class="preview-frame" id="template-preview">
+        <iframe id="preview-iframe" title="Template Preview"></iframe>
+      </div>
+    </div>
+
+    <!-- Step 3: Generate -->
+    <div class="card" id="card-generate">
+      <h2>3. Generate Signatures</h2>
+      <p style="font-size:0.875rem; color:var(--color-muted); margin-bottom:16px;">
+        Detected columns will map to placeholders in the template.
+      </p>
+      <div id="column-mapping" style="font-size:0.8rem; margin-bottom:16px;"></div>
+      <button class="btn btn-primary" id="btn-generate" disabled>
+        ⚡ Generate Signatures
+      </button>
+      <div class="progress-container" id="progress-container">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-text" id="progress-text">0 / 0</div>
+      </div>
+      <div class="messages" id="gen-messages"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="card result-section" id="card-result">
+      <div class="count" id="result-count">0</div>
+      <div class="label">signatures generated</div>
+      <button class="btn btn-secondary" id="btn-download">
+        📦 Download ZIP
+      </button>
+    </div>
+  </div>
+
+  <script>
+    import '../lib/app';
+  </script>
+</body>
+</html>
+
