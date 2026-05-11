@@ -42,7 +42,12 @@ async function loadTemplate() {
   const url = templateSelect.value;
   const res = await fetch(url);
   templateHtml = await res.text();
-  previewIframe.srcdoc = templateHtml;
+  // Inject centering style into preview (does not affect generated output)
+  const previewHtml = templateHtml.replace(
+    '</head>',
+    '<style>body{display:flex;flex-direction:column;align-items:center;}</style></head>'
+  );
+  previewIframe.srcdoc = previewHtml;
 }
 
 loadTemplate();
