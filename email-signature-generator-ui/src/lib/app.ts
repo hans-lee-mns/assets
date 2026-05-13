@@ -1,210 +1,83 @@
 /**
- * Main application logic — runs entirely in the browser.
+ * Application bootstrap — mode switch + shared template loading.
+ *
+ * Architecture:
+ *   - Mode switch toggles visibility of CSV vs Single sections.
+ *   - Template select + preview iframe are shared.
+ *   - Each mode (csv-mode, single-mode) wires its own DOM and exposes a reset().
  */
 
-import { parseCsv, type CsvParseResult } from './csv-parser';
-import { renderTemplate } from './template-renderer';
-import { safeFilename } from './filename';
-import { generateZip, downloadBlob } from './zip-generator';
-import { validateColumns } from './validation';
+import { fetchTemplate, renderPreview } from './template-loader';
+import { initCsvMode } from './modes/csv-mode';
+import { initSingleMode } from './modes/single-mode';
+import { $, setActiveSteps } from './dom';
 
-// ── State ──────────────────────────────────────────────────────────
-let csvData: CsvParseResult | null = null;
+type Mode = 'csv' | 'single';
+
+// ── Shared DOM ─────────────────────────────────────────────────────
+const templateSelect = $<HTMLSelectElement>('template-select');
+const previewIframe = $<HTMLIFrameElement>('preview-iframe');
+const modeRadios = Array.from(
+  document.querySelectorAll<HTMLInputElement>('input[name="mode"]')
+);
+const sections = {
+  csv: Array.from(document.querySelectorAll<HTMLElement>('[data-mode="csv"]')),
+  single: Array.from(document.querySelectorAll<HTMLElement>('[data-mode="single"]')),
+};
+const steps = [$('step-1'), $('step-2'), $('step-3')];
+
+// ── Shared state ───────────────────────────────────────────────────
 let templateHtml = '';
-let zipBlob: Blob | null = null;
+let currentMode: Mode = 'csv';
 
-// ── DOM Elements ───────────────────────────────────────────────────
-const dropZone = document.getElementById('drop-zone')!;
-const csvInput = document.getElementById('csv-input') as HTMLInputElement;
-const fileInfo = document.getElementById('file-info')!;
-const fileName = document.getElementById('file-name')!;
-const fileRemove = document.getElementById('file-remove')!;
-const csvMessages = document.getElementById('csv-messages')!;
-const templateSelect = document.getElementById('template-select') as HTMLSelectElement;
-const previewIframe = document.getElementById('preview-iframe') as HTMLIFrameElement;
-const columnMapping = document.getElementById('column-mapping')!;
-const btnGenerate = document.getElementById('btn-generate') as HTMLButtonElement;
-const progressContainer = document.getElementById('progress-container')!;
-const progressFill = document.getElementById('progress-fill')!;
-const progressText = document.getElementById('progress-text')!;
-const genMessages = document.getElementById('gen-messages')!;
-const cardResult = document.getElementById('card-result')!;
-const resultCount = document.getElementById('result-count')!;
-const btnDownload = document.getElementById('btn-download')!;
-const steps = [
-  document.getElementById('step-1')!,
-  document.getElementById('step-2')!,
-  document.getElementById('step-3')!,
-];
+const getTemplateHtml = () => templateHtml;
 
-// ── Template Loading ───────────────────────────────────────────────
+// ── Init modes (must happen before loadTemplate uses `single`) ─────
+const csv = initCsvMode({ getTemplateHtml, steps });
+const single = initSingleMode({ getTemplateHtml, previewIframe, steps });
+
+// ── Template loading ───────────────────────────────────────────────
 async function loadTemplate() {
-  const url = templateSelect.value;
-  const res = await fetch(url);
-  templateHtml = await res.text();
-  // Inject centering style into preview (does not affect generated output)
-  const previewHtml = templateHtml.replace(
-    '</head>',
-    '<style>body{display:flex;flex-direction:column;align-items:center;}</style></head>'
-  );
-  previewIframe.srcdoc = previewHtml;
+  templateHtml = await fetchTemplate(templateSelect.value);
+  if (currentMode === 'csv') {
+    renderPreview(previewIframe, templateHtml);
+  } else {
+    single.refreshPreview();
+  }
 }
 
-loadTemplate();
+// ── Mode switching ─────────────────────────────────────────────────
+function applyMode(mode: Mode) {
+  currentMode = mode;
+  for (const el of sections.csv) el.style.display = mode === 'csv' ? '' : 'none';
+  for (const el of sections.single) el.style.display = mode === 'single' ? '' : 'none';
+  setActiveSteps(steps, 1);
+
+  if (mode === 'single') {
+    single.refreshPreview();
+  } else if (templateHtml) {
+    renderPreview(previewIframe, templateHtml);
+  }
+}
+
+// ── Wire shared controls ───────────────────────────────────────────
 templateSelect.addEventListener('change', loadTemplate);
 
-// ── CSV Upload ─────────────────────────────────────────────────────
-dropZone.addEventListener('click', () => csvInput.click());
-dropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropZone.classList.add('dragover');
-});
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('dragover');
-  if (e.dataTransfer?.files.length) handleFile(e.dataTransfer.files[0]);
-});
-csvInput.addEventListener('change', () => {
-  if (csvInput.files?.length) handleFile(csvInput.files[0]);
-});
-fileRemove.addEventListener('click', resetCsv);
+modeRadios.forEach((r) =>
+  r.addEventListener('change', () => {
+    if (r.checked) applyMode(r.value as Mode);
+  })
+);
 
-function handleFile(file: File) {
-  if (!file.name.endsWith('.csv')) {
-    showMessage(csvMessages, 'error', 'Please upload a .csv file.');
-    return;
-  }
+// Default mode = CSV (also reflected in HTML `checked` attribute).
+const defaultMode = (modeRadios.find((r) => r.checked)?.value as Mode) ?? 'csv';
+applyMode(defaultMode);
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const text = e.target?.result as string;
-    const result = parseCsv(text);
-
-    csvMessages.innerHTML = '';
-
-    if (result.errors.length) {
-      result.errors.forEach(err => showMessage(csvMessages, 'error', err));
-      return;
-    }
-
-    csvData = result;
-    fileName.textContent = `${file.name} (${result.users.length} users, ${result.columns.length} columns)`;
-    fileInfo.style.display = 'flex';
-    dropZone.style.display = 'none';
-
-    // Show column mapping
-    const requiredFields = ['FirstName', 'LastName', 'Mail'];
-    const validation = validateColumns(result.columns, requiredFields);
-
-    const colTags = result.columns.map(c => {
-      const code = document.createElement('code');
-      code.textContent = '{{' + c + '}}';
-      return code.outerHTML;
-    }).join(' ');
-    columnMapping.innerHTML = '<strong>Columns detected:</strong> ' + colTags;
-
-    if (validation.errors.length) {
-      validation.errors.forEach(err => showMessage(csvMessages, 'warning', err));
-    }
-
-    btnGenerate.disabled = false;
-    updateSteps(2);
-    showMessage(csvMessages, 'success', `✓ Loaded ${result.users.length} user(s) from ${file.name}`);
-  };
-  reader.readAsText(file);
-}
-
-function resetCsv() {
-  csvData = null;
-  fileInfo.style.display = 'none';
-  dropZone.style.display = '';
-  csvInput.value = '';
-  csvMessages.innerHTML = '';
-  columnMapping.innerHTML = '';
-  btnGenerate.disabled = true;
-  cardResult.classList.remove('visible');
-  progressContainer.classList.remove('visible');
-  genMessages.innerHTML = '';
-  updateSteps(1);
-}
-
-// ── Generation ─────────────────────────────────────────────────────
-btnGenerate.addEventListener('click', async () => {
-  if (!csvData || !templateHtml) return;
-
-  btnGenerate.disabled = true;
-  genMessages.innerHTML = '';
-  progressContainer.classList.add('visible');
-  cardResult.classList.remove('visible');
-  updateSteps(3);
-
-  const files: { filename: string; content: string }[] = [];
-  const total = csvData.users.length;
-  let processed = 0;
-  let warnings = 0;
-
-  for (const user of csvData.users) {
-    const html = renderTemplate(templateHtml, user);
-    const fname = safeFilename(user['FirstName'] || '', user['LastName'] || '');
-
-    files.push({ filename: fname, content: html });
-    processed++;
-
-    if (!user['FirstName'] || !user['LastName']) warnings++;
-
-    // Update progress
-    const pct = Math.round((processed / total) * 100);
-    progressFill.style.width = `${pct}%`;
-    progressText.textContent = `${processed} / ${total}`;
-
-    // Yield to UI every 10 rows for large files
-    if (processed % 10 === 0) {
-      await new Promise(r => setTimeout(r, 0));
-    }
-  }
-
-  // Generate ZIP
-  progressText.textContent = 'Creating ZIP...';
-  try {
-    zipBlob = await generateZip(files);
-  } catch (err: any) {
-    showMessage(genMessages, 'error', err.message);
-    btnGenerate.disabled = false;
-    return;
-  }
-
-  // Done
-  progressText.textContent = `${processed} / ${total} — Done!`;
-  resultCount.textContent = processed.toString();
-  cardResult.classList.add('visible');
-
-  if (warnings > 0) {
-    showMessage(genMessages, 'warning', `${warnings} user(s) had missing name fields.`);
-  }
-  showMessage(genMessages, 'success', `✓ ${processed} signature(s) ready for download.`);
-
-  btnGenerate.disabled = false;
+// Kick off initial template load
+loadTemplate().catch((err) => {
+  console.error('[template] load failed:', err);
 });
 
-// ── Download ───────────────────────────────────────────────────────
-btnDownload.addEventListener('click', () => {
-  if (zipBlob) {
-    downloadBlob(zipBlob, 'email-signatures.zip');
-  }
-});
-
-// ── Helpers ────────────────────────────────────────────────────────
-function showMessage(container: HTMLElement, type: string, text: string) {
-  const div = document.createElement('div');
-  div.className = `msg msg-${type}`;
-  div.textContent = text;
-  container.appendChild(div);
-}
-
-function updateSteps(activeStep: number) {
-  steps.forEach((step, i) => {
-    step.classList.toggle('active', i < activeStep);
-  });
-}
+// Expose for debugging in dev console
+(window as unknown as { __app: unknown }).__app = { csv, single, getTemplateHtml };
 

@@ -15,18 +15,30 @@ import '../styles/global.css';
   <div class="container">
     <header>
       <h1>📧 Email Signature Generator</h1>
-      <p>Upload a CSV, generate personalised signatures, download as ZIP.</p>
+      <p>Generate personalised signatures from a CSV — or for a single user.</p>
     </header>
 
-    <!-- Steps indicator -->
+    <!-- Mode switch -->
+    <div class="mode-switch" role="tablist" aria-label="Generation mode">
+      <label class="mode-option">
+        <input type="radio" name="mode" value="csv" checked>
+        <span>📄 CSV Upload</span>
+      </label>
+      <label class="mode-option">
+        <input type="radio" name="mode" value="single">
+        <span>👤 Single User</span>
+      </label>
+    </div>
+
+    <!-- Steps indicator (shared) -->
     <div class="steps">
       <div class="step active" id="step-1"></div>
       <div class="step" id="step-2"></div>
       <div class="step" id="step-3"></div>
     </div>
 
-    <!-- Step 1: Upload CSV -->
-    <div class="card" id="card-upload">
+    <!-- ─── CSV MODE ─────────────────────────────────────────────── -->
+    <div class="card" id="card-upload" data-mode="csv">
       <h2>1. Upload Staff CSV</h2>
       <div class="upload-area" id="drop-zone">
         <div class="icon">📄</div>
@@ -41,7 +53,39 @@ import '../styles/global.css';
       <div class="messages" id="csv-messages"></div>
     </div>
 
-    <!-- Step 2: Select Template -->
+    <!-- ─── SINGLE USER MODE ─────────────────────────────────────── -->
+    <div class="card" id="card-form" data-mode="single">
+      <h2>1. User Details</h2>
+      <form id="single-form" class="single-form" novalidate>
+        <div class="field">
+          <label for="single-FirstName">First name <span class="req">*</span></label>
+          <input id="single-FirstName" name="FirstName" type="text" autocomplete="given-name" required>
+          <div class="field-error" id="err-FirstName"></div>
+        </div>
+        <div class="field">
+          <label for="single-LastName">Last name <span class="req">*</span></label>
+          <input id="single-LastName" name="LastName" type="text" autocomplete="family-name" required>
+          <div class="field-error" id="err-LastName"></div>
+        </div>
+        <div class="field">
+          <label for="single-Mail">Email <span class="req">*</span></label>
+          <input id="single-Mail" name="Mail" type="email" autocomplete="email" required>
+          <div class="field-error" id="err-Mail"></div>
+        </div>
+        <div class="field">
+          <label for="single-Title">Title <span class="req">*</span></label>
+          <input id="single-Title" name="Title" type="text" autocomplete="organization-title" required>
+          <div class="field-error" id="err-Title"></div>
+        </div>
+        <div class="field">
+          <label for="single-MobilePhone">Mobile phone <span class="opt">(optional)</span></label>
+          <input id="single-MobilePhone" name="MobilePhone" type="tel" autocomplete="tel">
+          <div class="field-error" id="err-MobilePhone"></div>
+        </div>
+      </form>
+    </div>
+
+    <!-- ─── SHARED: Template + Preview ───────────────────────────── -->
     <div class="card" id="card-template">
       <h2>2. Signature Template</h2>
       <select id="template-select">
@@ -52,30 +96,50 @@ import '../styles/global.css';
       </div>
     </div>
 
-    <!-- Step 3: Generate -->
-    <div class="card" id="card-generate">
+    <!-- ─── CSV MODE: Generate ───────────────────────────────────── -->
+    <div class="card" id="card-generate-csv" data-mode="csv">
       <h2>3. Generate Signatures</h2>
       <p style="font-size:0.875rem; color:var(--color-muted); margin-bottom:16px;">
         Detected columns will map to placeholders in the template.
       </p>
       <div id="column-mapping" style="font-size:0.8rem; margin-bottom:16px;"></div>
-      <button class="btn btn-primary" id="btn-generate" disabled>
-        ⚡ Generate Signatures
+      <button class="btn btn-primary" id="csv-btn-generate" disabled>
+        ⚡ Generate ZIP
       </button>
-      <div class="progress-container" id="progress-container">
+      <div class="progress-container" id="csv-progress-container">
         <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="progress-fill"></div>
+          <div class="progress-bar-fill" id="csv-progress-fill"></div>
         </div>
-        <div class="progress-text" id="progress-text">0 / 0</div>
+        <div class="progress-text" id="csv-progress-text">0 / 0</div>
       </div>
-      <div class="messages" id="gen-messages"></div>
+      <div class="messages" id="csv-gen-messages"></div>
     </div>
 
-    <!-- Result -->
-    <div class="card result-section" id="card-result">
-      <div class="count" id="result-count">0</div>
+    <!-- ─── CSV MODE: Result ─────────────────────────────────────── -->
+    <div class="card result-section" id="csv-card-result" data-mode="csv">
+      <div class="count" id="csv-result-count">0</div>
       <div class="label">signatures generated</div>
-      <button class="btn btn-secondary" id="btn-download">
+      <button class="btn btn-secondary" id="csv-btn-download">
+        📦 Download ZIP
+      </button>
+    </div>
+
+    <!-- ─── SINGLE MODE: Generate ────────────────────────────────── -->
+    <div class="card" id="card-generate-single" data-mode="single">
+      <h2>3. Generate Signature</h2>
+      <p style="font-size:0.875rem; color:var(--color-muted); margin-bottom:16px;">
+        The HTML file (and the ZIP) will be named after the user's email address.
+      </p>
+      <button class="btn btn-primary" id="single-btn-generate" disabled>
+        ⚡ Generate Signature ZIP
+      </button>
+      <div class="messages" id="single-gen-messages"></div>
+    </div>
+
+    <!-- ─── SINGLE MODE: Result ──────────────────────────────────── -->
+    <div class="card result-section" id="single-card-result" data-mode="single">
+      <div class="label" id="single-result-label">Signature ready</div>
+      <button class="btn btn-secondary" id="single-btn-download">
         📦 Download ZIP
       </button>
     </div>

@@ -4,12 +4,14 @@ A client-side web app built with Astro.js that generates personalised HTML email
 
 ## Features
 
+- 🔀 **Two modes** — CSV bulk upload (default) or single-user form
 - 📄 **Upload CSV** — drag & drop or click to browse
-- 🎨 **Template preview** — see the signature layout before generating
+- 📝 **Single-user form** — manual entry with live inline validation
+- 🎨 **Live template preview** — updates as you type in single-user mode
 - ⚡ **Client-side processing** — no backend required, all data stays in your browser
-- 📊 **Progress bar** — visual feedback during generation
-- 📦 **ZIP download** — all signatures packaged into one download
-- ✅ **Validation** — warns about missing columns or empty fields
+- 📊 **Progress bar** — visual feedback during CSV generation
+- 📦 **ZIP download** — bulk ZIP for CSV mode, email-named ZIP for single mode
+- ✅ **Validation** — required-field + email-format checks, inline errors
 
 ## Project Structure
 
@@ -19,13 +21,18 @@ email-signature-generator-ui/
 │   └── templates/
 │       └── signature-template.html    # Default HTML signature template
 ├── src/
-│   ├── components/                    # (future: extracted Astro components)
 │   ├── lib/
+│   │   ├── app.ts                    # Bootstrap + mode switching
+│   │   ├── dom.ts                    # Shared DOM helpers ($, messages, steps)
 │   │   ├── csv-parser.ts             # CSV string → array of objects
 │   │   ├── template-renderer.ts      # Replace {{Placeholders}} with data
+│   │   ├── template-loader.ts        # Fetch (cache-busted) + render preview
 │   │   ├── zip-generator.ts          # JSZip wrapper + download helper
-│   │   ├── filename.ts               # Safe filename generation
-│   │   └── validation.ts             # Column & row validation
+│   │   ├── filename.ts               # Safe filenames (names + email-based)
+│   │   ├── validation.ts             # Column / row / form validators
+│   │   └── modes/
+│   │       ├── csv-mode.ts           # CSV upload + bulk generation
+│   │       └── single-mode.ts        # Single-user form mode
 │   ├── pages/
 │   │   └── index.astro               # Main page (single-page app)
 │   └── styles/
@@ -51,11 +58,19 @@ npm run build
 
 ## How It Works
 
-1. User uploads a CSV file with a header row
-2. App detects columns and maps them to `{{Placeholder}}` tokens in the template
-3. For each row, the template is rendered with that user's data
-4. All generated HTML files are packaged into a ZIP
-5. User downloads the ZIP — done!
+The app has **two modes** controlled by a switch at the top — CSV Upload (default) and Single User.
+
+**CSV Upload mode**
+1. Upload a CSV with a header row
+2. Columns are auto-mapped to `{{Placeholder}}` tokens
+3. Each row is rendered against the template
+4. All HTML files packaged into `email-signatures.zip`
+
+**Single User mode**
+1. Fill in the form (FirstName, LastName, Email, Title, MobilePhone)
+2. Live validation — required fields + email format
+3. Preview updates live as you type
+4. Click generate → ZIP named after the email (e.g. `akash.gangoo_mns_mu.zip`) containing the matching HTML file
 
 ## CSV Format
 
