@@ -320,7 +320,9 @@ select {
 }
 
 .mode-option span {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 18px;
   border-radius: 999px;
   font-size: 0.85rem;
@@ -328,6 +330,12 @@ select {
   color: var(--color-muted);
   transition: background 0.2s, color 0.2s;
   user-select: none;
+}
+
+.mode-icon {
+  /* SVG strokes inherit currentColor → tracks the label color (incl. white when selected) */
+  color: inherit;
+  flex-shrink: 0;
 }
 
 .mode-option input:checked + span {
@@ -351,14 +359,8 @@ select {
   gap: 16px;
 }
 
-.single-form .field:nth-child(3),  /* Email spans full width */
-.single-form .field:nth-child(5) { /* Mobile spans full width */
-  grid-column: 1 / -1;
-}
-
 @media (max-width: 540px) {
   .single-form { grid-template-columns: 1fr; }
-  .single-form .field { grid-column: 1 / -1; }
 }
 
 .field {
