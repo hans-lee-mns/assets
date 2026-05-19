@@ -117,6 +117,22 @@ header p {
   font-weight: 600;
 }
 
+/* File list (multiple CSVs) */
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.file-list .file-info {
+  margin-top: 0;
+}
+.file-list .meta {
+  color: var(--color-muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
 /* Progress Bar */
 .progress-container {
   margin-top: 16px;

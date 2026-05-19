@@ -5,12 +5,16 @@ A client-side web app built with Astro.js that generates personalised HTML email
 ## Features
 
 - 🔀 **Two modes** — CSV bulk upload (default) or single-user form
-- 📄 **Upload CSV** — drag & drop or click to browse
+- 📄 **Upload one or many CSVs** — drag & drop or click to browse, with per-file Remove buttons
 - 📝 **Single-user form** — manual entry with live inline validation
 - 🎨 **Live template preview** — updates as you type in single-user mode
 - ⚡ **Client-side processing** — no backend required, all data stays in your browser
 - 📊 **Progress bar** — visual feedback during CSV generation
-- 📦 **ZIP download** — bulk ZIP for CSV mode, email-named ZIP for single mode
+- 📦 **Smart ZIP naming**
+  - Single CSV → ZIP named after the CSV file (e.g. `staff.csv` → `staff.zip`)
+  - Multiple CSVs → one `email-signatures.zip` with a subfolder per CSV
+  - Single-user mode → ZIP named after the email
+- 🔠 **`{{LastName}}` rendered in UPPERCASE** in the signature output
 - ✅ **Validation** — required-field + email-format checks, inline errors
 
 ## Project Structure
@@ -61,10 +65,13 @@ npm run build
 The app has **two modes** controlled by a switch at the top — CSV Upload (default) and Single User.
 
 **CSV Upload mode**
-1. Upload a CSV with a header row
+1. Upload one or more CSV files (drag & drop or click to browse) — each must have a header row
 2. Columns are auto-mapped to `{{Placeholder}}` tokens
 3. Each row is rendered against the template
-4. All HTML files packaged into `email-signatures.zip`
+4. Output:
+   - **1 CSV** → flat ZIP named after the CSV (e.g. `staff.csv` → `staff.zip`)
+   - **N CSVs** → `email-signatures.zip` with one subfolder per CSV (named after the file stem)
+   - Duplicate CSV names get a `(2)`, `(3)`… suffix; duplicate person filenames inside a folder are auto-numbered
 
 **Single User mode**
 1. Fill in the form (FirstName, LastName, Email, Title, MobilePhone)
@@ -85,7 +92,7 @@ The CSV must have a header row. Column names become placeholder names.
 Use `{{ColumnName}}` anywhere in the HTML template:
 
 - `{{FirstName}}` — User's first name
-- `{{LastName}}` — User's last name
+- `{{LastName}}` — User's last name (rendered in **UPPERCASE** by the renderer)
 - `{{Mail}}` — Email address
 - `{{Title}}` — Job title
 - `{{MobilePhone}}` — Mobile number (auto-removed with "m." prefix if empty)

@@ -70,3 +70,23 @@ export function filenameFromEmail(email: string): string {
 export function zipNameFromEmail(email: string): string {
   return `${slugFromEmail(email)}.zip`;
 }
+
+/**
+ * Build a ZIP filename from an uploaded CSV file name.
+ * - Strips any directory path
+ * - Removes the `.csv` extension (case-insensitive)
+ * - Preserves the original casing of the base name
+ * - Falls back to "email-signatures.zip" if the name is empty/invalid
+ *
+ * Example: "Staff List.csv" → "Staff List.zip"
+ *          "users.CSV"      → "users.zip"
+ */
+export function zipNameFromCsvFilename(csvFilename: string): string {
+  if (!csvFilename) return 'email-signatures.zip';
+  // Strip any path separators just in case
+  const base = csvFilename.split(/[\\/]/).pop() ?? csvFilename;
+  // Remove trailing .csv (case-insensitive)
+  const stem = base.replace(/\.csv$/i, '').trim();
+  return stem ? `${stem}.zip` : 'email-signatures.zip';
+}
+

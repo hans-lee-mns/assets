@@ -1,15 +1,27 @@
 /**
  * CSV Upload mode — handles drop zone, parsing, validation, batch generation.
+ * Supports uploading one or many CSV files at once. When multiple CSVs are
+ * provided, each becomes a subfolder (named after the CSV stem) inside the
+ * downloaded ZIP. When a single CSV is uploaded the ZIP is named after it.
  */
 
-import { parseCsv, type CsvParseResult } from '../csv-parser';
+import { parseCsv, type CsvParseResult, type ParsedUser } from '../csv-parser';
 import { renderTemplate } from '../template-renderer';
-import { safeFilename } from '../filename';
+import { safeFilename, zipNameFromCsvFilename } from '../filename';
 import { generateZip, downloadBlob } from '../zip-generator';
 import { validateColumns } from '../validation';
-import { $, showMessage, setMessage, clearMessages, setActiveSteps } from '../dom';
+import { $, showMessage, clearMessages, setActiveSteps } from '../dom';
 
 const REQUIRED_FIELDS = ['FirstName', 'LastName', 'Mail'];
+const DEFAULT_ZIP_NAME = 'email-signatures.zip';
+
+interface CsvEntry {
+  id: string;
+  file: File;
+  /** Stem name (no .csv extension) — used as the in-zip folder name. */
+  stem: string;
+  data: CsvParseResult;
+}
 
 export interface CsvModeDeps {
   /** Returns the latest template HTML (already loaded). */
@@ -20,15 +32,14 @@ export interface CsvModeDeps {
 
 export function initCsvMode(deps: CsvModeDeps): { reset: () => void } {
   // ── State ────────────────────────────────────────────────────────
-  let csvData: CsvParseResult | null = null;
+  const entries: CsvEntry[] = [];
   let zipBlob: Blob | null = null;
+  let zipFilename = DEFAULT_ZIP_NAME;
 
   // ── DOM ──────────────────────────────────────────────────────────
   const dropZone = $('drop-zone');
   const csvInput = $<HTMLInputElement>('csv-input');
-  const fileInfo = $('file-info');
-  const fileName = $('file-name');
-  const fileRemove = $('file-remove');
+  const fileListEl = $('file-list');
   const csvMessages = $('csv-messages');
   const columnMapping = $('column-mapping');
   const btnGenerate = $<HTMLButtonElement>('csv-btn-generate');
@@ -50,53 +61,64 @@ export function initCsvMode(deps: CsvModeDeps): { reset: () => void } {
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (e.dataTransfer?.files.length) handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer?.files.length) handleFiles(e.dataTransfer.files);
   });
   csvInput.addEventListener('change', () => {
-    if (csvInput.files?.length) handleFile(csvInput.files[0]);
+    if (csvInput.files?.length) handleFiles(csvInput.files);
+    csvInput.value = ''; // allow re-selecting same file
   });
-  fileRemove.addEventListener('click', reset);
 
-  function handleFile(file: File) {
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      setMessage(csvMessages, 'error', 'Please upload a .csv file.');
-      return;
+  function handleFiles(list: FileList) {
+    const files = Array.from(list);
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        showMessage(csvMessages, 'error', `"${file.name}" is not a .csv file — skipped.`);
+        continue;
+      }
+      const dup = entries.find(
+        (e) => e.file.name === file.name && e.file.size === file.size
+      );
+      if (dup) {
+        showMessage(csvMessages, 'warning', `"${file.name}" is already in the list — skipped.`);
+        continue;
+      }
+      readAndAddFile(file);
     }
+  }
 
+  function readAndAddFile(file: File) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
       const result = parseCsv(text);
 
-      clearMessages(csvMessages);
-
       if (result.errors.length) {
-        result.errors.forEach((err) => showMessage(csvMessages, 'error', err));
+        result.errors.forEach((err) =>
+          showMessage(csvMessages, 'error', `"${file.name}": ${err}`)
+        );
         return;
       }
 
-      csvData = result;
-      fileName.textContent = `${file.name} (${result.users.length} users, ${result.columns.length} columns)`;
-      fileInfo.style.display = 'flex';
-      dropZone.style.display = 'none';
+      const stem = file.name.replace(/\.csv$/i, '').trim() || 'signatures';
+      entries.push({
+        id: `${file.name}__${file.size}__${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        file,
+        stem,
+        data: result,
+      });
 
-      // Column mapping + validation
+      // Show columns of the *latest* file
+      renderColumnMapping(result.columns);
+
       const validation = validateColumns(result.columns, REQUIRED_FIELDS);
-
-      const colTags = result.columns
-        .map((c) => {
-          const code = document.createElement('code');
-          code.textContent = '{{' + c + '}}';
-          return code.outerHTML;
-        })
-        .join(' ');
-      columnMapping.innerHTML = '<strong>Columns detected:</strong> ' + colTags;
-
       if (validation.errors.length) {
-        validation.errors.forEach((err) => showMessage(csvMessages, 'warning', err));
+        validation.errors.forEach((err) =>
+          showMessage(csvMessages, 'warning', `"${file.name}": ${err}`)
+        );
       }
 
-      btnGenerate.disabled = false;
+      refreshFileList();
+      btnGenerate.disabled = entries.length === 0;
       setActiveSteps(deps.steps, 2);
       showMessage(
         csvMessages,
@@ -107,10 +129,73 @@ export function initCsvMode(deps: CsvModeDeps): { reset: () => void } {
     reader.readAsText(file);
   }
 
+  function renderColumnMapping(columns: string[]) {
+    const colTags = columns
+      .map((c) => {
+        const code = document.createElement('code');
+        code.textContent = '{{' + c + '}}';
+        return code.outerHTML;
+      })
+      .join(' ');
+    columnMapping.innerHTML = '<strong>Columns detected:</strong> ' + colTags;
+  }
+
+  function refreshFileList() {
+    fileListEl.innerHTML = '';
+    if (entries.length === 0) {
+      fileListEl.style.display = 'none';
+      dropZone.style.display = '';
+      columnMapping.innerHTML = '';
+      return;
+    }
+
+    fileListEl.style.display = 'flex';
+    // Keep drop zone visible so users can add more files
+    dropZone.style.display = '';
+
+    for (const entry of entries) {
+      const row = document.createElement('div');
+      row.className = 'file-info';
+
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = entry.file.name;
+
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = `${entry.data.users.length} users · ${entry.data.columns.length} cols`;
+
+      const remove = document.createElement('span');
+      remove.className = 'remove';
+      remove.textContent = '✕ Remove';
+      remove.addEventListener('click', () => removeEntry(entry.id));
+
+      row.appendChild(name);
+      row.appendChild(meta);
+      row.appendChild(remove);
+      fileListEl.appendChild(row);
+    }
+  }
+
+  function removeEntry(id: string) {
+    const idx = entries.findIndex((e) => e.id === id);
+    if (idx === -1) return;
+    entries.splice(idx, 1);
+
+    if (entries.length === 0) {
+      reset();
+      return;
+    }
+    renderColumnMapping(entries[entries.length - 1].data.columns);
+    refreshFileList();
+  }
+
   function reset() {
-    csvData = null;
+    entries.length = 0;
     zipBlob = null;
-    fileInfo.style.display = 'none';
+    zipFilename = DEFAULT_ZIP_NAME;
+    fileListEl.innerHTML = '';
+    fileListEl.style.display = 'none';
     dropZone.style.display = '';
     csvInput.value = '';
     clearMessages(csvMessages);
@@ -125,7 +210,7 @@ export function initCsvMode(deps: CsvModeDeps): { reset: () => void } {
   // ── Generate ─────────────────────────────────────────────────────
   btnGenerate.addEventListener('click', async () => {
     const templateHtml = deps.getTemplateHtml();
-    if (!csvData || !templateHtml) return;
+    if (entries.length === 0 || !templateHtml) return;
 
     btnGenerate.disabled = true;
     clearMessages(genMessages);
@@ -134,27 +219,59 @@ export function initCsvMode(deps: CsvModeDeps): { reset: () => void } {
     setActiveSteps(deps.steps, 3);
 
     const files: { filename: string; content: string }[] = [];
-    const total = csvData.users.length;
+    const total = entries.reduce((sum, e) => sum + e.data.users.length, 0);
     let processed = 0;
     let warnings = 0;
 
-    for (const user of csvData.users) {
-      const html = renderTemplate(templateHtml, user);
-      const fname = safeFilename(user['FirstName'] || '', user['LastName'] || '');
+    // Handle duplicate stems across CSV files
+    const stemCounts = new Map<string, number>();
+    const folderForEntry = (entry: CsvEntry): string => {
+      if (entries.length === 1) return ''; // flat ZIP for a single CSV
+      const base = entry.stem;
+      const count = stemCounts.get(base) ?? 0;
+      stemCounts.set(base, count + 1);
+      return count === 0 ? `${base}/` : `${base} (${count + 1})/`;
+    };
 
-      files.push({ filename: fname, content: html });
-      processed++;
+    for (const entry of entries) {
+      const folder = folderForEntry(entry);
+      const usedNames = new Set<string>();
 
-      if (!user['FirstName'] || !user['LastName']) warnings++;
+      for (const user of entry.data.users as ParsedUser[]) {
+        const html = renderTemplate(templateHtml, user);
+        let fname = safeFilename(user['FirstName'] || '', user['LastName'] || '');
 
-      const pct = Math.round((processed / total) * 100);
-      progressFill.style.width = `${pct}%`;
-      progressText.textContent = `${processed} / ${total}`;
+        // De-duplicate within the same folder
+        if (usedNames.has(fname)) {
+          const dot = fname.lastIndexOf('.');
+          const stem = dot === -1 ? fname : fname.slice(0, dot);
+          const ext = dot === -1 ? '' : fname.slice(dot);
+          let i = 2;
+          while (usedNames.has(`${stem}_${i}${ext}`)) i++;
+          fname = `${stem}_${i}${ext}`;
+        }
+        usedNames.add(fname);
 
-      if (processed % 10 === 0) {
-        await new Promise((r) => setTimeout(r, 0));
+        files.push({ filename: `${folder}${fname}`, content: html });
+        processed++;
+
+        if (!user['FirstName'] || !user['LastName']) warnings++;
+
+        const pct = Math.round((processed / total) * 100);
+        progressFill.style.width = `${pct}%`;
+        progressText.textContent = `${processed} / ${total}`;
+
+        if (processed % 10 === 0) {
+          await new Promise((r) => setTimeout(r, 0));
+        }
       }
     }
+
+    // ZIP name
+    zipFilename =
+      entries.length === 1
+        ? zipNameFromCsvFilename(entries[0].file.name)
+        : DEFAULT_ZIP_NAME;
 
     progressText.textContent = 'Creating ZIP...';
     try {
@@ -172,15 +289,20 @@ export function initCsvMode(deps: CsvModeDeps): { reset: () => void } {
     if (warnings > 0) {
       showMessage(genMessages, 'warning', `${warnings} user(s) had missing name fields.`);
     }
-    showMessage(genMessages, 'success', `✓ ${processed} signature(s) ready for download.`);
+    const fromCsv =
+      entries.length === 1 ? entries[0].file.name : `${entries.length} CSV files`;
+    showMessage(
+      genMessages,
+      'success',
+      `✓ ${processed} signature(s) from ${fromCsv} ready for download.`
+    );
 
     btnGenerate.disabled = false;
   });
 
   btnDownload.addEventListener('click', () => {
-    if (zipBlob) downloadBlob(zipBlob, 'email-signatures.zip');
+    if (zipBlob) downloadBlob(zipBlob, zipFilename);
   });
 
   return { reset };
 }
-

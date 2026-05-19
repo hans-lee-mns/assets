@@ -60,14 +60,11 @@ import '../styles/global.css';
       <h2>1. Upload Staff CSV</h2>
       <div class="upload-area" id="drop-zone">
         <div class="icon">📄</div>
-        <strong>Drop your CSV file here</strong>
-        <p>or click to browse — must include a header row</p>
-        <input type="file" id="csv-input" accept=".csv" hidden>
+        <strong>Drop one or more CSV files here</strong>
+        <p>or click to browse — each file must include a header row</p>
+        <input type="file" id="csv-input" accept=".csv" multiple hidden>
       </div>
-      <div id="file-info" class="file-info" style="display:none;">
-        <span class="name" id="file-name"></span>
-        <span class="remove" id="file-remove">✕ Remove</span>
-      </div>
+      <div id="file-list" class="file-list" style="display:none;"></div>
       <div class="messages" id="csv-messages"></div>
     </div>
 

@@ -10,9 +10,10 @@ import type { ParsedUser } from './csv-parser';
 export function renderTemplate(template: string, user: ParsedUser): string {
   let result = template;
 
-  // Replace each known field
-  for (const [key, value] of Object.entries(user)) {
+  // Replace each known field. LastName is rendered in UPPERCASE in the signature.
+  for (const [key, rawValue] of Object.entries(user)) {
     const placeholder = `{{${key}}}`;
+    const value = key === 'LastName' ? (rawValue ?? '').toLocaleUpperCase() : rawValue;
     result = result.replaceAll(placeholder, value);
   }
 

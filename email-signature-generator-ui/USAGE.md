@@ -34,14 +34,20 @@ Generate email signatures in two ways:
 
 ## CSV Mode (bulk users)
 
-### Step 1: Prepare a CSV in the correct format
+### Step 1: Prepare one or more CSVs in the correct format
 ![CSV Step 1](https://cdn.jsdelivr.net/gh/mnsltd/mns-public@master/email/csv-step-1.png)
 
-### Step 2: Choose **CSV Mode** and upload the file
+### Step 2: Choose **CSV Mode** and upload the file(s)
 ![CSV Step 2](https://cdn.jsdelivr.net/gh/mnsltd/mns-public@master/email/csv-step-2.gif)
 
-### Step 3: Click generate — download `email-signatures.zip`
+You can drop or browse **multiple CSV files at once**. Each file is listed with its row/column count and a ✕ Remove button.
+
+### Step 3: Click generate — your ZIP downloads
 ![CSV Step 3](https://cdn.jsdelivr.net/gh/mnsltd/mns-public@master/email/csv-step-3.png)
+
+> **ZIP naming**
+> - **One CSV** → ZIP is named after the CSV file (e.g. `staff-mu.csv` → `staff-mu.zip`).
+> - **Multiple CSVs** → ZIP is `email-signatures.zip` containing one **subfolder per CSV** (named after each file's stem).
 
 ---
 
@@ -68,7 +74,7 @@ Jane,Doe,jane.doe@mns.mu,Marketing Manager,+230 50000000
 | Placeholder | Meaning |
 |-------------|---------|
 | `{{FirstName}}` | First name |
-| `{{LastName}}` | Last name |
+| `{{LastName}}` | Last name (rendered in **UPPERCASE** in the signature) |
 | `{{Mail}}` | Email address |
 | `{{Title}}` | Job title |
 | `{{MobilePhone}}` | Mobile number (auto-removed if empty) |
